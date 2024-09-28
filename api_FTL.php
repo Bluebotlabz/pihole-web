@@ -172,7 +172,7 @@ if ((isset($_GET['topClients']) || isset($_GET['getQuerySources']) || isset($_GE
 
     $FTLQuery = $FTLdb->query('SELECT network_addresses.name,network_addresses.ip,network.hwaddr FROM network_addresses INNER JOIN network ON network.id=network_addresses.network_id;');
     if (!$FTLQuery) {
-        throw new Exception('Error while querying FTL\'s database: '.$db->lastErrorMsg());
+        throw new Exception('Error while querying FTL\'s database: '.$FTLdb->lastErrorMsg());
     }
 
     // Loop over results to construct IP to name mapping
@@ -185,6 +185,10 @@ if ((isset($_GET['topClients']) || isset($_GET['getQuerySources']) || isset($_GE
         $stmt->bindValue(':ip', $res["ip"], SQLITE3_TEXT);
         $stmt->bindValue(':mac', $res["hwaddr"], SQLITE3_TEXT);
         $results = $stmt->execute();
+        if (!$results) {
+            throw new Exception('Error while querying gravity\'s client table: '.$db->lastErrorMsg());
+        }
+
         $row = $results->fetchArray();
 
         if (empty($row["comment"]) || is_null($row["comment"])) { // IDK how it would be returned
