@@ -395,7 +395,7 @@ if (isset($_GET['getClientNames']) && $auth) {
     $FTLdb = SQLite3_connect(getQueriesDBFilename()); // For network info
     $db = SQLite3_connect(getGravityDBFilename()); // For client comments
 
-    $FTLQuery = $FTLdb->query('SELECT network_addresses.name,network_addresses.ip,network.hwaddr, network.macVendor FROM network_addresses INNER JOIN network ON network.id=network_addresses.network_id;');
+    $FTLQuery = $FTLdb->query('SELECT network_addresses.name,network_addresses.ip,network.hwaddr FROM network_addresses INNER JOIN network ON network.id=network_addresses.network_id;');
     if (!$FTLQuery) {
         throw new Exception('Error while querying FTL\'s database: '.$db->lastErrorMsg());
     }
@@ -414,13 +414,8 @@ if (isset($_GET['getClientNames']) && $auth) {
         $row = $results->fetchArray();
 
         if (empty($row["comment"]) || is_null($row["comment"])) { // IDK how it would be returned
-            if (empty($res["macVendor"]) || is_null($res["macVendor"])) {
-                $IPNames[$res["ip"]] = $res["ip"];
-                $IPHasLegitName[$res["ip"]] = false; // We DEFINITELY prefer the hostname over the IP address
-            } else {
-                $IPNames[$res["ip"]] = $res["macVendor"];
-                $IPHasLegitName[$res["ip"]] = false; // We prefer the hostname over the vendor name
-            }
+            $IPNames[$res["ip"]] = $res["ip"];
+            $IPHasLegitName[$res["ip"]] = false; // We prefer the hostname over the IP address
         } else {
             $IPNames[$res["ip"]] = $row["comment"];
             $IPHasLegitName[$res["ip"]] = true; // Comments override any name provided
