@@ -10,40 +10,6 @@
 // For new client name logic
 require_once 'scripts/pi-hole/php/database.php';
 
-function getIPNames() {
-    $FTLdb = SQLite3_connect(getQueriesDBFilename()); // For network info
-    $db = SQLite3_connect(getGravityDBFilename()); // For client comments
-
-    $FTLQuery = $FTLdb->query('SELECT network_addresses.name,network_addresses.ip,network.hwaddr FROM network_addresses INNER JOIN network ON network.id=network_addresses.network_id;');
-    if (!$FTLQuery) {
-        throw new Exception('Error while querying FTL\'s database: '.$db->lastErrorMsg());
-    }
-
-    // Loop over results to construct IP to name mapping
-    $IPNames = array();
-
-    $stmt = $db->prepare('SELECT comment FROM client WHERE ip=:ip OR LOWER(ip)=LOWER(:mac) LIMIT 1;');
-    while ($res = $FTLQuery->fetchArray(SQLITE3_ASSOC)) {
-        // Query gravity DB to get the comment
-        // Select top permitted domains only
-        $stmt->bindValue(':ip', $res["ip"], SQLITE3_TEXT);
-        $stmt->bindValue(':mac', $res["hwaddr"], SQLITE3_TEXT);
-        $results = $stmt->execute();
-        $row = $results->fetchArray();
-
-        if (empty($row["comment"]) || is_null($row["comment"])) { // IDK how it would be returned
-            $IPNames[$res["ip"]] = $res["ip"];
-        } else {
-            $IPNames[$res["ip"]] = $row["comment"];
-        }
-    }
-
-    $FTLdb->close();
-    $db->close();
-
-    return $IPNames;
-}
-
 if (!isset($api)) {
     exit('Direct call to api_FTL.php is not allowed!');
 }
@@ -197,7 +163,40 @@ if (isset($_GET['topItems']) && $auth) {
     }
 }
 
-$IPNames = getIPNames();
+/**
+ * For endpoints that need it, determine the client name from the client's comment
+ */
+if ((isset($_GET['topClients']) || isset($_GET['getQuerySources']) || isset($_GET['topClientsBlocked']) || isset($_GET['getClientNames'])) && $auth) {
+    $FTLdb = SQLite3_connect(getQueriesDBFilename()); // For network info
+    $db = SQLite3_connect(getGravityDBFilename()); // For client comments
+
+    $FTLQuery = $FTLdb->query('SELECT network_addresses.name,network_addresses.ip,network.hwaddr FROM network_addresses INNER JOIN network ON network.id=network_addresses.network_id;');
+    if (!$FTLQuery) {
+        throw new Exception('Error while querying FTL\'s database: '.$db->lastErrorMsg());
+    }
+
+    // Loop over results to construct IP to name mapping
+    $IPNames = array();
+
+    $stmt = $db->prepare('SELECT comment FROM client WHERE ip=:ip OR LOWER(ip)=LOWER(:mac) LIMIT 1;');
+    while ($res = $FTLQuery->fetchArray(SQLITE3_ASSOC)) {
+        // Query gravity DB to get the comment
+        // Select top permitted domains only
+        $stmt->bindValue(':ip', $res["ip"], SQLITE3_TEXT);
+        $stmt->bindValue(':mac', $res["hwaddr"], SQLITE3_TEXT);
+        $results = $stmt->execute();
+        $row = $results->fetchArray();
+
+        if (empty($row["comment"]) || is_null($row["comment"])) { // IDK how it would be returned
+            $IPNames[$res["ip"]] = $res["ip"];
+        } else {
+            $IPNames[$res["ip"]] = $row["comment"];
+        }
+    }
+
+    $FTLdb->close();
+    $db->close();
+}
 
 if ((isset($_GET['topClients']) || isset($_GET['getQuerySources'])) && $auth) {
     if (isset($_GET['topClients'])) {
@@ -257,7 +256,7 @@ if (isset($_GET['topClientsBlocked']) && $auth) {
                 if ($IPNames[$clientip] != $clientip) {
                     $clientname = $IPNames[$clientip];
                 }
-                
+
                 $top_clients[$clientname.'|'.$clientip] = intval($tmp[1]);
             } else {
                 $top_clients[$clientip] = intval($tmp[1]);
