@@ -7,6 +7,9 @@
 *    Please see LICENSE file for your rights under this license
 */
 
+// For new client name logic
+require_once 'scripts/pi-hole/php/database.php';
+
 if (!isset($api)) {
     exit('Direct call to api_FTL.php is not allowed!');
 }
@@ -389,6 +392,44 @@ if (isset($_GET['overTimeDataQueryTypes']) && $auth) {
 }
 
 if (isset($_GET['getClientNames']) && $auth) {
+    $FTLdb = SQLite3_connect(getQueriesDBFilename()); // For network info
+    $db = SQLite3_connect(getGravityDBFilename()); // For client comments
+
+    $FTLQuery = $FTLdb->query('SELECT network_addresses.name,network_addresses.ip,network.hwaddr, network.macVendor FROM network_addresses INNER JOIN network ON network.id=network_addresses.network_id;');
+    if (!$FTLQuery) {
+        throw new Exception('Error while querying FTL\'s database: '.$db->lastErrorMsg());
+    }
+
+    // Loop over results to construct IP to name mapping
+    $IPNames = array();
+    $IPHasLegitName = array();
+
+    $stmt = $db->prepare('SELECT comment FROM client WHERE ip=:ip OR LOWER(ip)=LOWER(:mac) LIMIT 1;');
+    while ($res = $FTLQuery->fetchArray(SQLITE3_ASSOC)) {
+        // Query gravity DB to get the comment
+        // Select top permitted domains only
+        $stmt->bindValue(':ip', $res["ip"], SQLITE3_TEXT);
+        $stmt->bindValue(':mac', $res["hwaddr"], SQLITE3_TEXT);
+        $results = $stmt->execute();
+        $row = $results->fetchArray();
+
+        if (empty($row["comment"]) || is_null($row["comment"])) { // IDK how it would be returned
+            if (empty($res["macVendor"]) || is_null($res["macVendor"])) {
+                $IPNames[$res["ip"]] = $res["ip"];
+                $IPHasLegitName[$res["ip"]] = false; // We DEFINITELY prefer the hostname over the IP address
+            } else {
+                $IPNames[$res["ip"]] = $res["macVendor"];
+                $IPHasLegitName[$res["ip"]] = false; // We prefer the hostname over the vendor name
+            }
+        } else {
+            $IPNames[$res["ip"]] = $row["comment"];
+            $IPHasLegitName[$res["ip"]] = true; // Comments override any name provided
+        }
+    }
+
+    $FTLdb->close();
+    $db->close();
+
     $return = callFTLAPI('client-names');
     if (array_key_exists('FTLnotrunning', $return)) {
         $data = array('FTLnotrunning' => true);
@@ -396,8 +437,14 @@ if (isset($_GET['getClientNames']) && $auth) {
         $client_names = array();
         foreach ($return as $line) {
             $tmp = explode(' ', $line);
+
+            $name = $tmp[0];
+            if ($IPHasLegitName[$tmp[1]] || empty($tmp[0]) || is_null($tmp[0])) {
+                $name = $IPNames[$tmp[1]];
+            }
+
             $client_names[] = array(
-                'name' => utf8_encode($tmp[0]),
+                'name' => utf8_encode($name),
                 'ip' => utf8_encode($tmp[1]),
             );
         }
