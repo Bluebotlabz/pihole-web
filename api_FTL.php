@@ -221,7 +221,7 @@ if ((isset($_GET['topClients']) || isset($_GET['getQuerySources'])) && $auth) {
         foreach ($return as $line) {
             $tmp = explode(' ', $line);
             $clientip = utf8_encode($tmp[2]);
-            if (count($tmp) > 3 && strlen($tmp[3]) > 0) {
+            if ($IPNames[$clientip] != $clientip || (count($tmp) > 3 && strlen($tmp[3]) > 0)) {
                 $clientname = utf8_encode($tmp[3]);
                 if ($IPNames[$clientip] != $clientip) {
                     $clientname = $IPNames[$clientip];
@@ -255,7 +255,7 @@ if (isset($_GET['topClientsBlocked']) && $auth) {
         foreach ($return as $line) {
             $tmp = explode(' ', $line);
             $clientip = utf8_encode($tmp[2]);
-            if (count($tmp) > 3 && strlen($tmp[3]) > 0) {
+            if ($IPNames[$clientip] != $clientip || (count($tmp) > 3 && strlen($tmp[3]) > 0)) {
                 $clientname = utf8_encode($tmp[3]);
                 if ($IPNames[$clientip] != $clientip) {
                     $clientname = $IPNames[$clientip];
